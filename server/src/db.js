@@ -1,5 +1,5 @@
 import pg from "pg";
-import { PGlite } from "@electric-sql/pglite";
+import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,56 +11,122 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let activePool = null;
 let initPromise = null;
 
-async function createPGliteBackend() {
-  const dataDir = path.resolve(__dirname, "../data/pgdata");
+function createSQLiteBackend() {
+  const dataDir = path.resolve(__dirname, "../data");
   fs.mkdirSync(dataDir, { recursive: true });
-  const pglite = new PGlite(dataDir);
-  await pglite.waitReady;
+  const dbPath = path.join(dataDir, "auditor.sqlite");
+  const sqlite = new DatabaseSync(dbPath);
 
-  const schemaPath = path.join(__dirname, "db", "schema.sql");
-  if (fs.existsSync(schemaPath)) {
-    const schema = fs.readFileSync(schemaPath, "utf8");
-    await pglite.exec(schema);
-    console.log("Embedded PGlite database initialized with schema at:", dataDir);
+  // Initialize tables
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS extension_risk_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      extension_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      version TEXT,
+      install_type TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      permissions TEXT NOT NULL DEFAULT '[]',
+      host_permissions TEXT NOT NULL DEFAULT '[]',
+      observed_domains TEXT NOT NULL DEFAULT '[]',
+      unfamiliar_domains TEXT NOT NULL DEFAULT '[]',
+      permission_score REAL NOT NULL,
+      runtime_adjustment REAL NOT NULL DEFAULT 0,
+      composite_score REAL NOT NULL,
+      risk_label TEXT NOT NULL,
+      reasons TEXT NOT NULL DEFAULT '[]',
+      score_breakdown TEXT NOT NULL DEFAULT '[]',
+      checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'Security Analyst',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_erh_extension_id_checked_at
+      ON extension_risk_history (extension_id, checked_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_users_email
+      ON users (email);
+  `);
+
+  console.log("Ultra-lightweight embedded SQLite database initialized at:", dbPath);
+
+  function executeQuery(text, params = []) {
+    let sql = text.trim();
+
+    // Remove any trailing semicolons inside subqueries if present
+    if (sql.endsWith(";")) sql = sql.slice(0, -1).trim();
+
+    // Map DISTINCT ON to SQLite window function
+    if (sql.includes("DISTINCT ON (extension_id)")) {
+      sql = `
+        SELECT * FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY extension_id ORDER BY checked_at DESC) as rn
+          FROM extension_risk_history
+        ) WHERE rn = 1
+      `;
+    }
+
+    // Replace PostgreSQL $1, $2, ... placeholders with SQLite ?
+    sql = sql.replace(/\$\d+/g, "?");
+
+    // Handle transaction control commands
+    if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+      sqlite.exec(sql);
+      return { rows: [] };
+    }
+
+    // Health check query
+    if (sql === "SELECT 1" || sql.startsWith("SELECT 1")) {
+      return { rows: [{ "?column?": 1 }] };
+    }
+
+    // Prepare statement and execute
+    const stmt = sqlite.prepare(sql);
+    let rows;
+    if (sql.startsWith("SELECT") || sql.includes("RETURNING")) {
+      rows = stmt.all(...params);
+    } else {
+      const res = stmt.run(...params);
+      rows = [{ id: res.lastInsertRowid }];
+    }
+
+    // Parse JSON columns back to objects/arrays
+    const jsonCols = ["permissions", "host_permissions", "observed_domains", "unfamiliar_domains", "reasons", "score_breakdown"];
+    const normalizedRows = rows.map((r) => {
+      const obj = { ...r };
+      for (const col of jsonCols) {
+        if (typeof obj[col] === "string") {
+          try {
+            obj[col] = JSON.parse(obj[col]);
+          } catch {}
+        }
+      }
+      return obj;
+    });
+
+    return { rows: normalizedRows };
   }
 
   return {
     async query(text, params) {
-      if (!params || params.length === 0) {
-        try {
-          return await pglite.query(text, params);
-        } catch (e) {
-          if (e.message && e.message.includes("cannot insert multiple commands")) {
-            const results = await pglite.exec(text);
-            return results && results.length ? results[results.length - 1] : { rows: [] };
-          }
-          throw e;
-        }
-      }
-      return pglite.query(text, params);
+      return executeQuery(text, params);
     },
     async connect() {
       return {
-        query: async (text, params) => {
-          if (!params || params.length === 0) {
-            try {
-              return await pglite.query(text, params);
-            } catch (e) {
-              if (e.message && e.message.includes("cannot insert multiple commands")) {
-                const results = await pglite.exec(text);
-                return results && results.length ? results[results.length - 1] : { rows: [] };
-              }
-              throw e;
-            }
-          }
-          return pglite.query(text, params);
-        },
+        query: async (text, params) => executeQuery(text, params),
         release: () => {},
       };
     },
-    on(event, handler) {},
+    on() {},
     async end() {
-      await pglite.close();
+      sqlite.close();
     },
   };
 }
@@ -69,21 +135,15 @@ async function getBackend() {
   if (activePool) return activePool;
   if (!initPromise) {
     initPromise = (async () => {
-      if (process.env.USE_EMBEDDED_DB === "true") {
-        activePool = await createPGliteBackend();
+      if (process.env.USE_EMBEDDED_DB === "true" || !process.env.DATABASE_URL) {
+        activePool = createSQLiteBackend();
         return activePool;
       }
 
-      const connectionConfig = process.env.DATABASE_URL
-        ? { connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 2000 }
-        : {
-            host: process.env.PGHOST || "localhost",
-            port: Number(process.env.PGPORT) || 5432,
-            user: process.env.PGUSER || "auditor",
-            password: process.env.PGPASSWORD || "auditor",
-            database: process.env.PGDATABASE || "extension_risk_auditor",
-            connectionTimeoutMillis: 2000,
-          };
+      const connectionConfig = {
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 3000,
+      };
 
       const pgPool = new Pool(connectionConfig);
       try {
@@ -96,9 +156,9 @@ async function getBackend() {
         activePool = pgPool;
         return activePool;
       } catch (err) {
-        console.log(`External PostgreSQL not available (${err.message}). Using embedded PGlite database.`);
+        console.log(`External PostgreSQL unavailable (${err.message}). Using embedded SQLite database.`);
         await pgPool.end().catch(() => {});
-        activePool = await createPGliteBackend();
+        activePool = createSQLiteBackend();
         return activePool;
       }
     })();
@@ -129,4 +189,3 @@ export const pool = {
 export async function query(text, params) {
   return pool.query(text, params);
 }
-
