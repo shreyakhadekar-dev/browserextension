@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "npm --prefix extension install && npm --prefix extension run build && npm --prefix server install",
+    "start": "node --max-old-space-size=256 server/src/index.js",
     "migrate": "npm --prefix server run migrate",
-    "start": "npm --prefix server run migrate && npm --prefix server start",
     "test": "npm --prefix server test"
   },
   "engines": {

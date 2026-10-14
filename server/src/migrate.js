@@ -13,6 +13,7 @@ async function migrate() {
   await pool.query(schema);
   console.log("Migration complete: extension_risk_history is ready.");
   await pool.end();
+  process.exit(0);
 }
 
 migrate().catch((err) => {
