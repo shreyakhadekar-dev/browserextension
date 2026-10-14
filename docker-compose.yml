@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: extension-risk-auditor-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: auditor
+      POSTGRES_PASSWORD: auditor
+      POSTGRES_DB: extension_risk_auditor
+    ports:
+      - "5432:5432"
+    volumes:
+      - auditor_pg_data:/var/lib/postgresql/data
+
+volumes:
+  auditor_pg_data:

@@ -1,0 +1,22 @@
+{
+  "name": "extension-risk-auditor-extension",
+  "version": "1.0.0",
+  "description": "Manifest V3 Chrome extension: reads installed extensions + observed network domains and renders their risk scores.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "lucide-react": "^0.436.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.2",
+    "vite-plugin-static-copy": "^1.0.6"
+  }
+}

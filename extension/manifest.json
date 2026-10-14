@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Extension Risk Auditor",
+  "version": "1.0.0",
+  "description": "Scores your installed Chrome extensions by requested permissions and observed network behavior, and re-checks them over time.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["management", "webRequest", "alarms", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "minimum_chrome_version": "116"
+}

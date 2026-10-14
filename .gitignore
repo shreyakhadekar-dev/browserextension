@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+server/data/
+server/.env
+chrome_test_profile/
+.DS_Store
+

@@ -1,0 +1,101 @@
+/*
+  Design language: a security console, not a marketing page. The subject is
+  a permission auditor a technical user runs against their own browser, so
+  the UI reads like a lightweight diagnostics panel - dense information,
+  a dark neutral base, and color reserved entirely for risk signal (never
+  decoration). Numbers (scores, weights, domains) are always set in the
+  monospace face so they read as data distinct from the sans-serif prose
+  around them - that distinction is doing real work, not just texture.
+*/
+
+:root {
+  /* Color */
+  --bg: #10141b;
+  --surface: #171d27;
+  --surface-raised: #1f2733;
+  --border: #2a3341;
+  --border-soft: #212a37;
+
+  --text: #e8ecf2;
+  --text-muted: #8b95a7;
+  --text-faint: #5c6579;
+
+  --accent: #5b8def;
+  --accent-bg: rgba(91, 141, 239, 0.14);
+  --accent-text: #a9c5fb;
+
+  --risk-high: #f2495c;
+  --risk-high-bg: rgba(242, 73, 92, 0.13);
+  --risk-medium: #e8a33d;
+  --risk-medium-bg: rgba(232, 163, 61, 0.13);
+  --risk-low: #38c793;
+  --risk-low-bg: rgba(56, 199, 147, 0.13);
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* Layout */
+  --radius: 8px;
+  --radius-sm: 5px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100%;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent-text);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SentinelAudit • Browser Extension Permission Risk Auditor</title>
+  <meta name="description" content="Audit browser extension permissions, detect silent background scope creep, and monitor real-time network traffic.">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Top Navigation Header -->
+  <header class="site-header">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">SentinelAudit</span>
+          <span class="brand-badge">MV3 Core</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#overview" class="nav-link active">Overview</a>
+        <a href="#live-audits" class="nav-link">Live Audits</a>
+        <a href="#simulator" class="nav-link">Risk Simulator</a>
+        <a href="#architecture" class="nav-link">Architecture</a>
+        <a href="#install-guide" class="nav-link">Extension Setup</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="status-indicator" id="api-status-pill">
+          <span class="status-dot"></span>
+          <span class="status-text">Checking DB…</span>
+        </div>
+
+        <a href="/dashboard/options.html" class="btn btn-outline" target="_blank" title="Open full Chrome Extension Dashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+
+        <!-- User Authentication State in Header -->
+        <div id="auth-header-container">
+          <button class="btn btn-primary" id="open-auth-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span>Sign In</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section" id="overview">
+    <div class="hero-glow"></div>
+    <div class="container hero-content">
+      <div class="hero-badge">
+        <span class="badge-pulse"></span>
+        <span>BCSE410L • Enterprise Browser Defense</span>
+      </div>
+
+      <h1 class="hero-title">
+        Audit Extension Permissions.<br>
+        <span class="gradient-text">Detect Silent Scope Drift.</span>
+      </h1>
+
+      <p class="hero-description">
+        Chrome extensions hold potent browser privileges—accessing browsing tabs, tokens, and storage. SentinelAudit combines <strong>literature-grounded static permission weights</strong> with <strong>runtime network attribution</strong> to catch stealthy updates and malicious exfiltration.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#live-audits" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          <span>Explore Live Audited Extensions</span>
+        </a>
+        <a href="#simulator" class="btn btn-secondary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          <span>Interactive Risk Sandbox</span>
+        </a>
+        <a href="/dashboard/options.html" target="_blank" class="btn btn-outline btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          <span>React Dashboard</span>
+        </a>
+      </div>
+
+      <!-- Quick Metrics Bar -->
+      <div class="metrics-bar">
+        <div class="metric-card">
+          <span class="metric-value mono" id="stat-total-extensions">0</span>
+          <span class="metric-label">Monitored Extensions</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value mono risk-high-text" id="stat-high-risk">0</span>
+          <span class="metric-label">High-Risk Flagged</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value mono" id="stat-avg-score">--</span>
+          <span class="metric-label">Avg Composite Risk</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value mono" id="stat-domains-count">0</span>
+          <span class="metric-label">Attributed Domains</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value mono success-text">100%</span>
+          <span class="metric-label">Manifest V3 Ready</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Audits Section (Cards Grid) -->
+  <section class="section-container" id="live-audits">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <div class="section-tag">Continuous Inventory</div>
+          <h2 class="section-title">Live Extension Risk Registry</h2>
+          <p class="section-subtitle">Real-time scan logs, calculated scores, and plain-language risk breakdowns stored in PostgreSQL.</p>
+        </div>
+
+        <div class="filter-controls">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input type="text" id="filter-search" placeholder="Search by extension or permission…">
+          </div>
+
+          <div class="risk-pills">
+            <button class="pill active" data-filter="all">All</button>
+            <button class="pill pill-high" data-filter="High">High Risk</button>
+            <button class="pill pill-medium" data-filter="Medium">Medium</button>
+            <button class="pill pill-low" data-filter="Low">Low</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cards Grid -->
+      <div class="cards-grid" id="extensions-cards-grid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading audited extensions from PostgreSQL…</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Risk Simulator Section -->
+  <section class="section-container bg-surface-subtle" id="simulator">
+    <div class="container">
+      <div class="section-header text-center">
+        <div class="section-tag">Interactive Security Lab</div>
+        <h2 class="section-title">Permission Risk Simulator</h2>
+        <p class="section-subtitle">Toggle permissions and observed domains to see how the composite scoring engine calculates blast radius and flags anomalies in real time.</p>
+      </div>
+
+      <div class="simulator-layout">
+        <!-- Input Configuration Card -->
+        <div class="panel-card sim-inputs">
+          <div class="panel-header">
+            <h3>Configure Extension Manifest</h3>
+            <div class="preset-dropdown-wrap">
+              <label for="preset-select">Preset:</label>
+              <select id="preset-select" class="select-input">
+                <option value="custom">-- Choose a Preset Scenario --</option>
+                <option value="overprivileged-adblocker">Overprivileged Adblocker (&lt;all_urls&gt; + webRequest)</option>
+                <option value="rogue-vpn">Suspicious Proxy VPN (proxy + sideload + exfil domain)</option>
+                <option value="safe-notes">Safe Markdown Notes (storage + alarms only)</option>
+                <option value="stealth-keylogger">Data Harvester (debugger + cookies + unknown host)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sim-name">Extension Name</label>
+            <input type="text" id="sim-name" class="text-input" value="Security Inspector Preview">
+          </div>
+
+          <div class="form-group">
+            <label>Host Permissions Grant</label>
+            <div class="radio-chip-group">
+              <label class="chip-label">
+                <input type="radio" name="sim-host" value="none" checked>
+                <span>None</span>
+              </label>
+              <label class="chip-label">
+                <input type="radio" name="sim-host" value="specific">
+                <span>Specific Origins (e.g. *.github.com)</span>
+              </label>
+              <label class="chip-label">
+                <input type="radio" name="sim-host" value="all_urls">
+                <span class="warning-chip">&lt;all_urls&gt; / Broad Match (+10 weight)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>API Permissions (Select to Toggle Weight)</label>
+            <div class="permission-checkboxes-grid" id="sim-permissions-grid">
+              <!-- Dynamically populated permissions with weights -->
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sim-domains">Observed Outbound Network Domains (Comma Separated)</label>
+            <input type="text" id="sim-domains" class="text-input mono" placeholder="api.tracker-exfil.xyz, telemetry.evil-cdn.org" value="telemetry-tracker.biz">
+            <small class="helper-text">+5 composite adjustment for each unfamiliar domain (capped at +25)</small>
+          </div>
+
+          <div class="sim-actions">
+            <button class="btn btn-primary" id="sim-submit-db-btn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              <span>Commit Audit to Database</span>
+            </button>
+            <button class="btn btn-outline" id="sim-reset-btn">Reset</button>
+          </div>
+        </div>
+
+        <!-- Real-Time Score Engine Output Card -->
+        <div class="panel-card sim-results">
+          <div class="panel-header">
+            <h3>Live Scoring Calculation</h3>
+            <span class="mono-badge" id="sim-timestamp">Real-time</span>
+          </div>
+
+          <div class="sim-score-hero">
+            <div class="gauge-container">
+              <svg class="score-circle-svg" width="130" height="130" viewBox="0 0 120 120">
+                <circle class="circle-bg" cx="60" cy="60" r="50" />
+                <circle class="circle-progress" id="sim-gauge-bar" cx="60" cy="60" r="50" />
+              </svg>
+              <div class="gauge-number">
+                <span class="gauge-val mono" id="sim-score-val">0</span>
+                <span class="gauge-max">/100</span>
+              </div>
+            </div>
+
+            <div class="sim-label-block">
+              <div class="sim-risk-badge" id="sim-risk-label">Low</div>
+              <p class="sim-risk-summary" id="sim-risk-summary">Declared minimal permissions without elevated blast radius.</p>
+            </div>
+          </div>
+
+          <div class="breakdown-section">
+            <h4>Component Breakdown</h4>
+            <div class="breakdown-row">
+              <span>Permission Weight Score:</span>
+              <span class="mono" id="sim-perm-score">0 / 100</span>
+            </div>
+            <div class="breakdown-row">
+              <span>Runtime Network Adjustment:</span>
+              <span class="mono" id="sim-runtime-adj">+0 / 25</span>
+            </div>
+            <div class="breakdown-row total-row">
+              <span>Final Composite Score:</span>
+              <span class="mono" id="sim-composite-score">0</span>
+            </div>
+          </div>
+
+          <div class="reasons-section">
+            <h4>Generated Plain-Language Warnings</h4>
+            <ul class="reasons-list" id="sim-reasons-list">
+              <li>No elevated risk flags detected.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture & Research Foundations Section -->
+  <section class="section-container" id="architecture">
+    <div class="container">
+      <div class="section-header text-center">
+        <div class="section-tag">Grounded in Research</div>
+        <h2 class="section-title">Scoring Model & Literature Survey</h2>
+        <p class="section-subtitle">Directly mapping findings from modern browser security research into automated risk scoring.</p>
+      </div>
+
+      <div class="feature-cards-grid">
+        <div class="feature-card">
+          <div class="card-icon icon-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Tiered Permission Weights (1-10)</h3>
+          <p class="card-desc">Weights are proportional to blast radius. Critical capabilities (<code>debugger</code>, <code>proxy</code>, <code>nativeMessaging</code>) score 9–10, while isolated utilities (<code>storage</code>, <code>alarms</code>) sit at 1.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-icon icon-blue">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Runtime Network Attribution</h3>
+          <p class="card-desc">Grounded in Singh et al. (2025): extensions with minimal permissions can still siphon user data. We observe background network calls and penalize unfamiliar destination domains.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-icon icon-amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Silent Permission Drift Detection</h3>
+          <p class="card-desc">An extension audited as benign on day 1 can be updated months later with broad permissions. SentinelAudit records timestamped historical scans to spotlight delta increases.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-icon icon-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Plain-Language Diagnostics</h3>
+          <p class="card-desc">No cryptic permission names: security teams and users see actionable descriptions like <em>"can inspect active network traffic"</em> and <em>"can read cookies for all visited sites"</em>.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-icon icon-purple">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Host Grant Normalization</h3>
+          <p class="card-desc">An <code>&lt;all_urls&gt;</code> grant cannot be diluted by padding narrow hostnames, and dozens of specific URLs cannot out-weight an overarching wildcard access rule.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-icon icon-cyan">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <h3 class="card-title">Local-First PostgreSQL Storage</h3>
+          <p class="card-desc">Zero sensitive data leaks to third parties. Audit trails and domain observations are persisted in local PostgreSQL (or embedded PGlite WASM) under your enterprise control.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Extension Installation Guide Card -->
+  <section class="section-container bg-surface-subtle" id="install-guide">
+    <div class="container">
+      <div class="panel-card setup-card">
+        <div class="setup-header">
+          <div class="setup-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="section-title" style="margin:0;">Load Chrome Extension in 4 Steps</h2>
+            <p class="section-subtitle" style="margin-top:4px;">Install the built Manifest V3 extension in your Google Chrome or Microsoft Edge browser.</p>
+          </div>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-box">
+            <div class="step-num">1</div>
+            <h4>Open Extensions Manager</h4>
+            <p>Navigate to <code>chrome://extensions</code> in your Chrome address bar.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-num">2</div>
+            <h4>Enable Developer Mode</h4>
+            <p>Toggle the <strong>Developer mode</strong> switch in the upper-right corner.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-num">3</div>
+            <h4>Click "Load unpacked"</h4>
+            <p>Select the compiled output directory located at the path below.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-num">4</div>
+            <h4>Audit Extensions</h4>
+            <p>Click the extension icon in your browser toolbar to initiate automated scans.</p>
+          </div>
+        </div>
+
+        <div class="path-copy-box">
+          <div class="path-details">
+            <span class="path-label">Build Path:</span>
+            <code class="mono-path" id="build-path-text">C:\Users\user\.gemini\antigravity\scratch\browser-extension-risk-auditor\browser-extension-risk-auditor\extension\dist</code>
+          </div>
+          <button class="btn btn-primary" id="copy-path-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+            </svg>
+            <span id="copy-btn-text">Copy Path</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Authentication Modal (Login & Sign Up) -->
+  <div class="modal-backdrop" id="auth-modal">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="close-auth-modal" aria-label="Close modal">&times;</button>
+      
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tab-login" data-tab="login">Sign In</button>
+        <button class="modal-tab" id="tab-register" data-tab="register">Create Account</button>
+      </div>
+
+      <!-- Login Form View -->
+      <form class="auth-form active" id="login-form">
+        <div class="auth-header">
+          <h3>Welcome Back</h3>
+          <p>Access your enterprise extension audit dashboard.</p>
+        </div>
+
+        <div class="auth-alert" id="login-alert" style="display:none;"></div>
+
+        <div class="form-group">
+          <label for="login-email">Email Address</label>
+          <input type="email" id="login-email" class="text-input" placeholder="analyst@sentinel.sec" required>
+        </div>
+
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" class="text-input" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+
+        <div class="auth-divider"><span>OR QUICK ACCESS</span></div>
+
+        <button type="button" class="btn btn-outline btn-block demo-login-btn" id="demo-login-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>One-Click Login as Demo Auditor</span>
+        </button>
+      </form>
+
+      <!-- Register Form View -->
+      <form class="auth-form" id="register-form">
+        <div class="auth-header">
+          <h3>Create Auditor Account</h3>
+          <p>Set up an account to monitor and score browser extensions.</p>
+        </div>
+
+        <div class="auth-alert" id="register-alert" style="display:none;"></div>
+
+        <div class="form-group">
+          <label for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" class="text-input" placeholder="Alex Vance" required>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">Email Address</label>
+          <input type="email" id="reg-email" class="text-input" placeholder="alex@company.com" required>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" class="text-input" placeholder="Minimum 6 characters" minlength="6" required>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-role">Auditor Role</label>
+          <select id="reg-role" class="select-input">
+            <option value="Lead Security Auditor">Lead Security Auditor</option>
+            <option value="SOC Analyst">SOC Analyst</option>
+            <option value="IT SecOps Specialist">IT SecOps Specialist</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Register & Access</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Detail / History Modal for an Extension -->
+  <div class="modal-backdrop" id="detail-modal">
+    <div class="modal-card modal-lg">
+      <button class="modal-close-btn" id="close-detail-modal">&times;</button>
+      <div id="detail-modal-content">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-col brand-col">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <span class="brand-title">SentinelAudit</span>
+        </div>
+        <p class="footer-text">
+          Defensive browser security auditing tool adhering to Manifest V3 standards. Developed for Review-I: Browser Extension Permission Risk Auditor (BCSE410L).
+        </p>
+        <div class="footer-meta">
+          <span class="meta-pill">PostgreSQL Engine</span>
+          <span class="meta-pill">Node 24 + Express</span>
+          <span class="meta-pill">React 18</span>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">Navigation</h4>
+        <ul class="footer-links">
+          <li><a href="#overview">System Overview</a></li>
+          <li><a href="#live-audits">Live Extension Registry</a></li>
+          <li><a href="#simulator">Permission Simulator</a></li>
+          <li><a href="#architecture">Scoring Model & Papers</a></li>
+          <li><a href="/dashboard/options.html" target="_blank">Full React Dashboard</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">Literature Citations</h4>
+        <ul class="footer-links">
+          <li><span class="citation">Singh et al. (2025)</span> – Runtime Data Leakage via Minimal Extension Grants</li>
+          <li><span class="citation">Kapravelos et al.</span> – Hulking: Detecting Malicious WebExtensions</li>
+          <li><span class="citation">Chrome MV3 Security</span> – Declarative Net Request & Service Worker Isolation</li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">System Diagnostics</h4>
+        <div class="diag-card">
+          <div class="diag-item">
+            <span>API Port:</span>
+            <span class="mono">4000</span>
+          </div>
+          <div class="diag-item">
+            <span>Database:</span>
+            <span class="mono" id="footer-db-status">Postgres (Connected)</span>
+          </div>
+          <div class="diag-item">
+            <span>API Health:</span>
+            <span class="mono success-text">HTTP 200 OK</span>
+          </div>
+          <div class="diag-item">
+            <span>Scan Cadence:</span>
+            <span class="mono">Every 6 hrs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="container footer-bottom-inner">
+        <p>© 2026 SentinelAudit • Browser Extension Permission Risk Auditor. Defensive Security Tool.</p>
+        <p class="mono-sub">Local Server: http://localhost:4000</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

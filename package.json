@@ -1,0 +1,15 @@
+{
+  "name": "browser-extension-risk-auditor",
+  "version": "1.0.0",
+  "description": "Full-stack Browser Extension Permission Risk Auditor with Express API, PostgreSQL/PGlite database, Manifest V3 extension, and interactive web portal.",
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix extension install && npm --prefix extension run build && npm --prefix server install",
+    "migrate": "npm --prefix server run migrate",
+    "start": "npm --prefix server run migrate && npm --prefix server start",
+    "test": "npm --prefix server test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
